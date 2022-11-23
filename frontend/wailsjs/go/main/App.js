@@ -13,15 +13,3 @@ export function DeleteReader(arg1) {
 export function GetReader() {
   return window['go']['main']['App']['GetReader']();
 }
-
-export function SetReaderCardPresent(arg1, arg2) {
-  return window['go']['main']['App']['SetReaderCardPresent'](arg1, arg2);
-}
-
-export function SetReaderConnection(arg1, arg2) {
-  return window['go']['main']['App']['SetReaderConnection'](arg1, arg2);
-}
-
-export function SetReaderEpc(arg1, arg2) {
-  return window['go']['main']['App']['SetReaderEpc'](arg1, arg2);
-}
