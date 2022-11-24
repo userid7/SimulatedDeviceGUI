@@ -6,7 +6,7 @@ import {
   SetReaderCardPresent,
   SetReaderConnection,
   SetReaderEpc,
-} from "../../../wailsjs/go/main/App";
+} from "../../../wailsjs/go/hfreader/App";
 
 function HFCard(props) {
   const [epc, setEpc] = useState(props.reader.UidBuffer);
@@ -26,7 +26,7 @@ function HFCard(props) {
     const delayDebounceFn = setTimeout(() => {
       console.log(epc);
       SetReaderEpc(props.reader.Id, epc);
-    }, 3000);
+    }, 1000);
 
     return () => clearTimeout(delayDebounceFn);
   }, [epc]);
@@ -41,33 +41,13 @@ function HFCard(props) {
     SetReaderConnection(props.reader.Id, e.target.value);
   };
 
-  // const usePrevious = (value) => {
-  //   const ref = useRef();
-  //   useEffect(() => {
-  //     ref.current = value;
-  //   });
-  //   return ref.current;
-  // };
-
-  // const myPreviousReader = usePrevious(props.reader);
-
-  // useEffect(() => {
-  //   console.log("useEffect");
-  //   console.log(myPreviousReader);
-  //   console.log(props.reader);
-  //   if (myPreviousReader) {
-  //     if (!_.isEqual(myPreviousReader.UidBuffer, props.reader.UidBuffer)) {
-  //       console.log("Epc Change detected");
-  //       setEpc(props.reader.UidBuffer);
-  //     }
-  //     if (
-  //       !_.isEqual(myPreviousReader.IsCardPresent, props.reader.IsCardPresent)
-  //     ) {
-  //       console.log("IsCardPresenet Change detected");
-  //       setIsCardPresent(props.reader.IsCardPresent);
-  //     }
-  //   }
-  // }, [props.reader]);
+  useEffect(() => {
+    console.log("props.reader");
+    console.log(props.reader);
+    setEpc(props.reader.UidBuffer);
+    setIsConnected(props.reader.IsConnected);
+    setIsCardPresent(props.reader.IsCardPresent);
+  }, [JSON.stringify(props.reader)]);
 
   return (
     <div className="block p-4 rounded-lg shadow-lg bg-white border-gray-200 hover:bg-gray-100 my-2">
@@ -95,7 +75,7 @@ function HFCard(props) {
           </svg>
         </button>
       </div>
-      <div id="hf" className="flex flex-row justify-between py-2">
+      <div id="hf" className="flex flex-row justify-between py-1">
         <div className="flex flex-col justify-center pr-2">
           {/* EPC */}
           <input
@@ -125,22 +105,25 @@ function HFCard(props) {
             value={epc}
           />
         </div>
+
         {/* TODO : TRY TO USE FLOWBITE */}
         <div className="flex flex-row justify-center">
-          <Switch checked={isCardPresent} onChange={handleSwitchChange} />
-          <div className="flex justify-center px-2">
+          <div className="flex justify-center items-center px-1">
+            <Switch checked={isCardPresent} onChange={handleSwitchChange} />
+          </div>
+          <div className="flex justify-center items-center px-1">
             <button>
               <svg
-                xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
-                fill="currentColor"
-                className="w-5 h-5"
+                className={`w-5 h-5  fill-current ${
+                  isConnected ? "text-green-600" : "text-red-600"
+                }`}
               >
                 <path d="M5.25 3A2.25 2.25 0 003 5.25v9.5A2.25 2.25 0 005.25 17h9.5A2.25 2.25 0 0017 14.75v-9.5A2.25 2.25 0 0014.75 3h-9.5z" />
               </svg>
             </button>
           </div>
-          <div className="flex justify-center px-2">
+          {/* <div className="flex justify-center px-2">
             <button>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -155,8 +138,11 @@ function HFCard(props) {
                 />
               </svg>
             </button>
-          </div>
+          </div> */}
         </div>
+      </div>
+      <div className="text-xs px-2 text-slate-400">
+        target : {props.reader.TargetUrl}
       </div>
     </div>
   );

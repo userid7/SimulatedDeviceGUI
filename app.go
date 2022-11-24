@@ -32,8 +32,13 @@ func (a *App) DeleteReader(id uint) {
 }
 
 func (a *App) GetReader() []dm.Device {
-	// fmt.Println("Trying to get Reader")
 	devices := dm.GetActiveDevices()
-	// fmt.Println(devices)
 	return devices
+}
+
+func (a *App) SetReaderCardPresent() {
+}
+func (a *App) SetReaderConnection() {
+}
+func (a *App) SetReaderEpc() {
 }

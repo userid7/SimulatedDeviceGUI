@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Switch from "@mui/material/Switch";
-import { CreateReader } from "../../../wailsjs/go/main/App";
+import { CreateReader } from "../../../wailsjs/go/hfreader/App";
 
 function CreateHFCard() {
   const [line, setLine] = useState("");
@@ -22,6 +22,9 @@ function CreateHFCard() {
   return (
     <div className="block p-4 rounded-lg shadow-lg bg-white border-gray-200 hover:bg-gray-100 my-2">
       <div id="hf" className="flex flex-col py-2">
+        <div className="flex flex-col justify-center py-2 text-xl font-bold ">
+          Create New Reader
+        </div>
         <div className="flex flex-col justify-center py-2">
           <input
             id="line"
