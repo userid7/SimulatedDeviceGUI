@@ -18,11 +18,15 @@ export function GetAllPMGatewayFromDB():Promise<Array<pm.PMGateway>>;
 
 export function SetPM(arg1:number,arg2:pm.PM):Promise<void>;
 
+export function SetPMGatewayConnection(arg1:number,arg2:boolean):Promise<void>;
+
 export function SetPMIsOk(arg1:number,arg2:boolean):Promise<void>;
 
 export function SetPMIsRandom(arg1:number,arg2:boolean):Promise<void>;
 
 export function SetPMKw(arg1:number,arg2:number):Promise<void>;
+
+export function SetPMKwh(arg1:number,arg2:number):Promise<void>;
 
 export function Startup(arg1:context.Context,arg2:gorm.DB):Promise<void>;
 

@@ -151,7 +151,7 @@ function PMCard(props) {
                   type="range"
                   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
                   onChange={updateKWValue}
-                  defaultValue={pm.Kw}
+                  value={pm.Kw}
                 ></input>
               </td>
               <td>
@@ -168,7 +168,7 @@ function PMCard(props) {
             </tr>
             <tr>
               <td>kwh</td>
-              <td>1000</td>
+              <td>{pm.Kwh.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>

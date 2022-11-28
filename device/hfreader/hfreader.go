@@ -10,10 +10,10 @@ import (
 )
 
 type HFReader struct {
-	Id            uint `gorm:"primaryKey"`
-	Line          string
-	Post          string
-	Code          string
+	Id            uint   `gorm:"primaryKey"`
+	Line          string `validate:"required"`
+	Post          string `validate:"required"`
+	Code          string `validate:"required"`
 	UidBuffer     string
 	IsCardPresent bool
 	IsConnected   bool `gorm:"-"`
@@ -28,7 +28,7 @@ type ActiveHFReader struct {
 	c          mqtt.Client
 	mu         sync.Mutex
 	clientId   string
-	willTopic  string
+	connTopic  string
 	isActive   bool
 }
 
@@ -42,22 +42,23 @@ func (hf *ActiveHFReader) Setup() {
 	opts := mqtt.NewClientOptions()
 
 	hf.clientId = (hf.HFReader.Line + "-" + hf.HFReader.Post + "-" + hf.HFReader.Code)
-	hf.willTopic = "status/HF/" + hf.HFReader.Line + "/" + hf.HFReader.Post + "/" + hf.HFReader.Code
+	hf.connTopic = "status/HF/" + hf.HFReader.Line + "/" + hf.HFReader.Post + "/" + hf.HFReader.Code
 
-	opts = opts.AddBroker(hf.HFReader.TargetUrl)
-	opts = opts.SetClientID(hf.clientId)
-	opts = opts.SetWill(hf.willTopic, "Offline", 2, true)
-	opts = opts.SetKeepAlive(5 * time.Second)
+	opts.AddBroker(hf.HFReader.TargetUrl)
+	opts.SetClientID(hf.clientId)
+	opts.SetWill(hf.connTopic, "Offline", 2, true)
+	opts.SetKeepAlive(5 * time.Second)
 
 	hf.c = mqtt.NewClient(opts)
 
 	hf.isActive = true
-
 }
 
 func (hf *ActiveHFReader) Loop() {
 	for {
 		if !hf.isActive {
+			hf.Disconnect()
+			time.Sleep(1 * time.Second)
 			return
 		}
 
@@ -65,8 +66,8 @@ func (hf *ActiveHFReader) Loop() {
 		d := hf.HFReader
 		hf.mu.Unlock()
 
-		fmt.Println("device", d.Code, "loop")
-		fmt.Println(d)
+		// fmt.Println("device", d.Code, "loop")
+		// fmt.Println(d)
 
 		if !hf.c.IsConnected() {
 			if d.IsConnected {
@@ -83,10 +84,10 @@ func (hf *ActiveHFReader) Loop() {
 					hf.mu.Unlock()
 				}
 
-				fmt.Println("mqtt Topic : ", hf.willTopic)
+				fmt.Println("mqtt Topic : ", hf.connTopic)
 				fmt.Println("mqtt payload :", "Online")
 
-				if token := hf.c.Publish(hf.willTopic, 1, true, "Online"); token.Wait() && token.Error() != nil {
+				if token := hf.c.Publish(hf.connTopic, 1, true, "Online"); token.Wait() && token.Error() != nil {
 					fmt.Println(token.Error())
 				}
 
@@ -96,7 +97,7 @@ func (hf *ActiveHFReader) Loop() {
 			}
 		} else {
 			if d.IsConnected {
-				fmt.Println("IsConnected!")
+				// fmt.Println("IsConnected!")
 
 				if d.IsCardPresent && d.UidBuffer != "" {
 					if hf.CurrentUid != d.UidBuffer {
@@ -144,24 +145,30 @@ func (hf *ActiveHFReader) Loop() {
 					}
 				}
 			} else {
-				fmt.Println("IsNotConnected")
-				hf.c.Disconnect(100)
-				hf.mu.Lock()
-				hf.HFReader.IsConnected = false
-				hf.mu.Unlock()
+				hf.Disconnect()
 			}
 		}
-
 		time.Sleep(1 * time.Second)
-
 	}
+}
+
+func (hf *ActiveHFReader) Disconnect() {
+	fmt.Println("Diconnecting from broker...")
+	if token := hf.c.Publish(hf.connTopic, 1, true, "Offline"); token.Wait() && token.Error() != nil {
+		fmt.Println(token.Error())
+	}
+	hf.c.Disconnect(100)
+	hf.mu.Lock()
+	hf.HFReader.IsConnected = false
+	hf.mu.Unlock()
+	fmt.Println("Done!")
 }
 
 func (hf *ActiveHFReader) Destroy() {
 	fmt.Println("Destroy device with id", hf.id)
 	hf.c.Disconnect(100)
 	fmt.Println("is device with id", hf.id, "connected : ", hf.c.IsConnected())
-	hf.c = nil
+	// hf.c = nil
 	hf.isActive = false
 }
 

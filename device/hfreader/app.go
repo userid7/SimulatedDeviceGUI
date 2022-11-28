@@ -8,12 +8,15 @@ import (
 	util "SimulatedDeviceGUI/util"
 
 	"gorm.io/gorm"
+
+	"github.com/go-playground/validator/v10"
 )
 
 // App struct
 type App struct {
 	ctx             context.Context
 	db              *gorm.DB
+	validate        *validator.Validate
 	activeHFReaders []*ActiveHFReader
 }
 
@@ -27,6 +30,7 @@ func NewReaderApp() *App {
 func (a *App) Startup(ctx context.Context, db *gorm.DB) {
 	a.ctx = ctx
 	a.db = db
+	a.validate = validator.New()
 
 	db.AutoMigrate(&HFReader{})
 
@@ -43,8 +47,15 @@ func (a *App) CreateReader(line string, post string, code string, targetUrl stri
 	if targetUrl == "" {
 		targetUrl = "tcp://localhost:1883"
 	}
-	hfReader := HFReader{Line: line, Post: post, Code: code, TargetUrl: targetUrl}
-	if result := a.db.Create(&hfReader); result.Error != nil {
+	hfReader := &HFReader{Line: line, Post: post, Code: code, TargetUrl: targetUrl}
+
+	if err := a.validate.Struct(hfReader); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+
+	if result := a.db.Create(hfReader); result.Error != nil {
 		fmt.Println("Failed to create device")
 	}
 }
@@ -78,8 +89,8 @@ func (a *App) SetReaderCardPresent(id uint, isCardPresent bool) {
 func (a *App) SetReaderConnection(id uint, isConnected bool) {
 	fmt.Println("Connection change")
 	// a.db.Model(&HFReader{Id: id}).Update("IsConnected", isConnected)
-	for i, activeHFReader := range a.activeHFReaders{
-		if(activeHFReader.id == id){
+	for i, activeHFReader := range a.activeHFReaders {
+		if activeHFReader.id == id {
 			a.activeHFReaders[i].mu.Lock()
 			a.activeHFReaders[i].HFReader.IsConnected = isConnected
 			a.activeHFReaders[i].mu.Unlock()

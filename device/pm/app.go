@@ -8,13 +8,16 @@ import (
 	util "SimulatedDeviceGUI/util"
 
 	"gorm.io/gorm"
+
+	"github.com/go-playground/validator/v10"
 )
 
 // App struct
 type App struct {
-	ctx             context.Context
-	db              *gorm.DB
+	ctx              context.Context
+	db               *gorm.DB
 	activePMGateways []*ActivePMGateway
+	validate         *validator.Validate
 }
 
 func NewPMApp() *App {
@@ -24,6 +27,7 @@ func NewPMApp() *App {
 func (a *App) Startup(ctx context.Context, db *gorm.DB) {
 	a.ctx = ctx
 	a.db = db
+	a.validate = validator.New()
 
 	db.AutoMigrate(&PMGateway{})
 	db.AutoMigrate(&PM{})
@@ -43,6 +47,12 @@ func (a *App) CreatePMGateway(line string, code string, targetUrl string) {
 	}
 
 	pmGateway := PMGateway{Line: line, Code: code, TargetUrl: targetUrl}
+
+	if err := a.validate.Struct(pmGateway); err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	if result := a.db.Create(&pmGateway); result.Error != nil {
 		fmt.Println("Failed to create device")
 	}
@@ -50,6 +60,12 @@ func (a *App) CreatePMGateway(line string, code string, targetUrl string) {
 
 func (a *App) CreatePM(post string, code string, pmGatewayId uint) {
 	pm := PM{Post: post, Code: code, PMGatewayId: pmGatewayId}
+	
+	if err := a.validate.Struct(pm); err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	if result := a.db.Create(&pm); result.Error != nil {
 		fmt.Println("Failed to create device")
 	}
@@ -60,7 +76,7 @@ func (a *App) DeletePMGateway(id uint) {
 		fmt.Println("Failed to delete PMGateway with id", id)
 		return
 	}
-	if result := a.db.Where("GatewayId = ?", id).Delete(&PMGateway{}); result.Error != nil {
+	if result := a.db.Where("PMGatewayId = ?", id).Delete(&PM{}); result.Error != nil {
 		fmt.Println("Failed to delete PMs of PMGateway with id", id)
 		return
 	}
@@ -90,7 +106,17 @@ func (a *App) GetAllActivePMGateway() []PMGateway {
 	return pmGateway
 }
 
-func (a *App) SetPM(id uint, pm PM){
+func (a *App) SetPMGatewayConnection(id uint, isConnected bool) {
+	for i, activeHFReader := range a.activePMGateways {
+		if activeHFReader.id == id {
+			a.activePMGateways[i].mu.Lock()
+			a.activePMGateways[i].PMGateway.IsConnected = isConnected
+			a.activePMGateways[i].mu.Unlock()
+		}
+	}
+}
+
+func (a *App) SetPM(id uint, pm PM) {
 	fmt.Println("Set PM with id", pm.Id)
 	fmt.Println(pm)
 
@@ -103,7 +129,7 @@ func (a *App) SetPM(id uint, pm PM){
 	}
 }
 
-func (a *App) SetPMIsOk(id uint, isOk bool){
+func (a *App) SetPMIsOk(id uint, isOk bool) {
 	fmt.Println("Set PM IsOk with id", id)
 
 	selectedPM := &PM{Id: id}
@@ -114,7 +140,7 @@ func (a *App) SetPMIsOk(id uint, isOk bool){
 	}
 }
 
-func (a *App) SetPMKw(id uint, kw float32){
+func (a *App) SetPMKw(id uint, kw float32) {
 	fmt.Println("Set PM kw with id", id)
 
 	selectedPM := &PM{Id: id}
@@ -125,7 +151,18 @@ func (a *App) SetPMKw(id uint, kw float32){
 	}
 }
 
-func (a *App) SetPMIsRandom(id uint, isRandom bool){
+func (a *App) SetPMKwh(id uint, kw float32) {
+	fmt.Println("Set PM kwh with id", id)
+
+	selectedPM := &PM{Id: id}
+
+	if result := a.db.Model(&selectedPM).Update("Kwh", kw); result.Error != nil {
+		fmt.Println("Failed to update PM with id", id)
+		return
+	}
+}
+
+func (a *App) SetPMIsRandom(id uint, isRandom bool) {
 	fmt.Println("Set PM IsRandom with id", id)
 
 	selectedPM := &PM{Id: id}
@@ -171,7 +208,7 @@ func (a *App) SyncPMGatewayWithDB() {
 
 	for _, device := range devices {
 		device.IsConnected = true
-		activePMGateway := &ActivePMGateway{id: device.Id, PMGateway: device, isActive: true}
+		activePMGateway := &ActivePMGateway{id: device.Id, PMGateway: device, isActive: true, db: a.db}
 		activePMGateway.Setup()
 		go activePMGateway.Loop()
 		a.activePMGateways = append(a.activePMGateways, activePMGateway)

@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { _ } from "lodash";
-import { DeletePMGateway, CreatePM } from "../../../wailsjs/go/pm/App";
+import {
+  DeletePMGateway,
+  SetPMGatewayConnection,
+} from "../../../wailsjs/go/pm/App";
 import CreatePMCard from "./create.pm.card";
 import PMCard from "./pm.card";
 import CardHeader from "../card/card.header";
@@ -14,6 +17,13 @@ function PMGatewayCard(props) {
     console.log("Delete PM Gateway");
     e.preventDefault();
     DeletePMGateway(props.pmGateway.Id);
+  };
+
+  const handleConnectionChange = (e) => {
+    console.log("Connection changed");
+    console.log(!isConnected);
+    setIsConnected(!isConnected);
+    SetPMGatewayConnection(props.pmGateway.Id, !isConnected);
   };
 
   useEffect(() => {
@@ -72,6 +82,7 @@ function PMGatewayCard(props) {
         host={props.pmGateway.TargetUrl}
         isConnected={isConnected}
         onClickDelete={deletePMGatewayHandler}
+        onClickConnection={handleConnectionChange}
       />
 
       <div className="px-2">

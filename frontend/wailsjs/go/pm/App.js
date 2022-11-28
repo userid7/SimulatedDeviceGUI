@@ -30,6 +30,10 @@ export function SetPM(arg1, arg2) {
   return window['go']['pm']['App']['SetPM'](arg1, arg2);
 }
 
+export function SetPMGatewayConnection(arg1, arg2) {
+  return window['go']['pm']['App']['SetPMGatewayConnection'](arg1, arg2);
+}
+
 export function SetPMIsOk(arg1, arg2) {
   return window['go']['pm']['App']['SetPMIsOk'](arg1, arg2);
 }
@@ -40,6 +44,10 @@ export function SetPMIsRandom(arg1, arg2) {
 
 export function SetPMKw(arg1, arg2) {
   return window['go']['pm']['App']['SetPMKw'](arg1, arg2);
+}
+
+export function SetPMKwh(arg1, arg2) {
+  return window['go']['pm']['App']['SetPMKwh'](arg1, arg2);
 }
 
 export function Startup(arg1, arg2) {
