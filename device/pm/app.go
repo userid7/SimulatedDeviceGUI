@@ -14,87 +14,141 @@ import (
 type App struct {
 	ctx             context.Context
 	db              *gorm.DB
-	activeHFReaders []*ActiveHFReader
+	activePMGateways []*ActivePMGateway
 }
 
-// NewApp creates a new App application struct
-func NewReaderApp() *App {
+func NewPMApp() *App {
 	return &App{}
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
 func (a *App) Startup(ctx context.Context, db *gorm.DB) {
 	a.ctx = ctx
 	a.db = db
 
-	db.AutoMigrate(&HFReader{})
+	db.AutoMigrate(&PMGateway{})
+	db.AutoMigrate(&PM{})
 
 	go func() {
 		for {
-			fmt.Println(a.activeHFReaders)
-			a.SyncReaderWithDB()
+			fmt.Println(a.activePMGateways)
+			a.SyncPMGatewayWithDB()
 			time.Sleep(2 * time.Second)
 		}
 	}()
 }
 
-func (a *App) CreateReader(line string, post string, code string, targetUrl string) {
+func (a *App) CreatePMGateway(line string, code string, targetUrl string) {
 	if targetUrl == "" {
 		targetUrl = "tcp://localhost:1883"
 	}
-	hfReader := HFReader{Line: line, Post: post, Code: code, TargetUrl: targetUrl}
-	if result := a.db.Create(&hfReader); result.Error != nil {
+
+	pmGateway := PMGateway{Line: line, Code: code, TargetUrl: targetUrl}
+	if result := a.db.Create(&pmGateway); result.Error != nil {
 		fmt.Println("Failed to create device")
 	}
 }
 
-func (a *App) DeleteReader(id uint) {
-	if result := a.db.Delete(&HFReader{}, id); result.Error != nil {
-		fmt.Println("Failed to delete device")
+func (a *App) CreatePM(post string, code string, pmGatewayId uint) {
+	pm := PM{Post: post, Code: code, PMGatewayId: pmGatewayId}
+	if result := a.db.Create(&pm); result.Error != nil {
+		fmt.Println("Failed to create device")
 	}
 }
 
-func (a *App) GetAllDeviceFromDB() []HFReader {
-	var devices []HFReader
-	if result := a.db.Find(&devices); result.Error != nil {
-		fmt.Println("Failed to get all device")
+func (a *App) DeletePMGateway(id uint) {
+	if result := a.db.Delete(&PMGateway{}, id); result.Error != nil {
+		fmt.Println("Failed to delete PMGateway with id", id)
+		return
 	}
-	return devices
-}
-
-func (a *App) GetAllReader() []HFReader {
-	var hfr []HFReader
-
-	for _, activeDevice := range a.activeHFReaders {
-		hfr = append(hfr, activeDevice.HFReader)
+	if result := a.db.Where("GatewayId = ?", id).Delete(&PMGateway{}); result.Error != nil {
+		fmt.Println("Failed to delete PMs of PMGateway with id", id)
+		return
 	}
-	return hfr
 }
 
-func (a *App) SetReaderCardPresent(id uint, isCardPresent bool) {
-	a.db.Model(&HFReader{Id: id}).Update("IsCardPresent", isCardPresent)
-}
-func (a *App) SetReaderConnection(id uint, isConnected bool) {
-	a.db.Model(&HFReader{Id: id}).Update("IsConnected", isConnected)
-}
-func (a *App) SetReaderEpc(id uint, epc string) {
-	a.db.Model(&HFReader{Id: id}).Update("UidBuffer", epc)
+func (a *App) DeletePM(id uint) {
+	if result := a.db.Delete(&PM{}, id); result.Error != nil {
+		fmt.Println("Failed to delete PM with id", id)
+		return
+	}
 }
 
-func (a *App) SyncReaderWithDB() {
-	devices := a.GetAllDeviceFromDB()
+func (a *App) GetAllPMGatewayFromDB() []PMGateway {
+	var pmGateway []PMGateway
+	if result := a.db.Preload("PMs").Find(&pmGateway); result.Error != nil {
+		fmt.Println("Failed to get all PMGateway")
+	}
+	return pmGateway
+}
+
+func (a *App) GetAllActivePMGateway() []PMGateway {
+	var pmGateway []PMGateway
+
+	for _, activeDevice := range a.activePMGateways {
+		pmGateway = append(pmGateway, activeDevice.PMGateway)
+	}
+	return pmGateway
+}
+
+func (a *App) SetPM(id uint, pm PM){
+	fmt.Println("Set PM with id", pm.Id)
+	fmt.Println(pm)
+
+	selectedPM := &PM{Id: id}
+
+	// TODO : Updates not receive zero value (false also not detect)
+	if result := a.db.Model(&selectedPM).Updates(pm); result.Error != nil {
+		fmt.Println("Failed to update PM with id", id)
+		return
+	}
+}
+
+func (a *App) SetPMIsOk(id uint, isOk bool){
+	fmt.Println("Set PM IsOk with id", id)
+
+	selectedPM := &PM{Id: id}
+
+	if result := a.db.Model(&selectedPM).Update("IsOk", isOk); result.Error != nil {
+		fmt.Println("Failed to update PM with id", id)
+		return
+	}
+}
+
+func (a *App) SetPMKw(id uint, kw float32){
+	fmt.Println("Set PM kw with id", id)
+
+	selectedPM := &PM{Id: id}
+
+	if result := a.db.Model(&selectedPM).Update("Kw", kw); result.Error != nil {
+		fmt.Println("Failed to update PM with id", id)
+		return
+	}
+}
+
+func (a *App) SetPMIsRandom(id uint, isRandom bool){
+	fmt.Println("Set PM IsRandom with id", id)
+
+	selectedPM := &PM{Id: id}
+
+	if result := a.db.Model(&selectedPM).Update("IsRandom", isRandom); result.Error != nil {
+		fmt.Println("Failed to delete PM with id", id)
+		return
+	}
+}
+
+func (a *App) SyncPMGatewayWithDB() {
+	devices := a.GetAllPMGatewayFromDB()
 	var unExistIndex []int
 
-	for i, activeDevice := range a.activeHFReaders {
+	for i, activeDevice := range a.activePMGateways {
 		isExistInDB := false
 
 		for j, device := range devices {
 			if activeDevice.id == device.Id {
-				a.activeHFReaders[i].mu.Lock()
-				a.activeHFReaders[i].HFReader.UidBuffer = device.UidBuffer
-				a.activeHFReaders[i].HFReader.IsCardPresent = device.IsCardPresent
-				a.activeHFReaders[i].mu.Unlock()
+				a.activePMGateways[i].mu.Lock()
+				a.activePMGateways[i].PMGateway.PMs = device.PMs
+				a.activePMGateways[i].mu.Unlock()
+
 				devices = util.RemoveFromSlice(devices, j)
 				isExistInDB = true
 				break
@@ -108,18 +162,18 @@ func (a *App) SyncReaderWithDB() {
 	unExistIndex = util.Reverse(unExistIndex)
 
 	for _, i := range unExistIndex {
-		id := a.activeHFReaders[i].id
+		id := a.activePMGateways[i].id
 		fmt.Println("active device with id", id, ", not exist in db, removing...")
-		a.activeHFReaders[i].Destroy()
-		a.activeHFReaders = util.RemoveFromSlice(a.activeHFReaders, i)
+		a.activePMGateways[i].Destroy()
+		a.activePMGateways = util.RemoveFromSlice(a.activePMGateways, i)
 		fmt.Println("active device with id", id, ", has removed")
 	}
 
 	for _, device := range devices {
 		device.IsConnected = true
-		activeHFReader := &ActiveHFReader{id: device.Id, HFReader: device, isActive: true}
-		activeHFReader.Setup()
-		go activeHFReader.Loop()
-		a.activeHFReaders = append(a.activeHFReaders, activeHFReader)
+		activePMGateway := &ActivePMGateway{id: device.Id, PMGateway: device, isActive: true}
+		activePMGateway.Setup()
+		go activePMGateway.Loop()
+		a.activePMGateways = append(a.activePMGateways, activePMGateway)
 	}
 }

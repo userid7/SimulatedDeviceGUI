@@ -1,17 +1,6 @@
 package util
 
-// import "fmt"
-
-// func RemoveFromSliceDeprecated[T any](s []T, index int) []T {
-// 	ret := make([]T, 0)
-//     ret = append(ret, s[:index]...)
-//     return append(ret, s[index+1:]...)
-// }
-
 func RemoveFromSlice[T any](slice []T, s int) []T {
-    // fmt.Println(slice)
-	// fmt.Println(slice[:s])
-	// fmt.Println(slice[s+1:])
 	return append(slice[:s], slice[s+1:]...)
 }
 

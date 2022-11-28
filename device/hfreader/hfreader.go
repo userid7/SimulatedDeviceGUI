@@ -44,10 +44,10 @@ func (hf *ActiveHFReader) Setup() {
 	hf.clientId = (hf.HFReader.Line + "-" + hf.HFReader.Post + "-" + hf.HFReader.Code)
 	hf.willTopic = "status/HF/" + hf.HFReader.Line + "/" + hf.HFReader.Post + "/" + hf.HFReader.Code
 
-	opts.AddBroker(hf.HFReader.TargetUrl)
-	opts.SetClientID(hf.clientId)
-	opts.SetWill(hf.willTopic, "Offline", 1, true)
-	opts.SetKeepAlive(5 * time.Second)
+	opts = opts.AddBroker(hf.HFReader.TargetUrl)
+	opts = opts.SetClientID(hf.clientId)
+	opts = opts.SetWill(hf.willTopic, "Offline", 2, true)
+	opts = opts.SetKeepAlive(5 * time.Second)
 
 	hf.c = mqtt.NewClient(opts)
 
@@ -67,7 +67,6 @@ func (hf *ActiveHFReader) Loop() {
 
 		fmt.Println("device", d.Code, "loop")
 		fmt.Println(d)
-		// fmt.Println(hf.NextSend)
 
 		if !hf.c.IsConnected() {
 			if d.IsConnected {
@@ -95,61 +94,62 @@ func (hf *ActiveHFReader) Loop() {
 			} else {
 				hf.c.Disconnect(100)
 			}
-		}
+		} else {
+			if d.IsConnected {
+				fmt.Println("IsConnected!")
 
-		if hf.c.IsConnected() {
-			fmt.Println("IsConnected!")
-
-			if d.IsCardPresent && d.UidBuffer != "" {
-				if hf.CurrentUid != d.UidBuffer {
-					// TODO: sent first in to server
-					err := hf.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, d.UidBuffer, "IN", hf.c)
-					if err == nil {
-						hf.mu.Lock()
-						hf.CurrentUid = d.UidBuffer
-						hf.NextSend = time.Now().Add(30 * time.Second)
-						hf.mu.Unlock()
+				if d.IsCardPresent && d.UidBuffer != "" {
+					if hf.CurrentUid != d.UidBuffer {
+						// TODO: sent first in to server
+						err := hf.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, d.UidBuffer, "IN", hf.c)
+						if err == nil {
+							hf.mu.Lock()
+							hf.CurrentUid = d.UidBuffer
+							hf.NextSend = time.Now().Add(30 * time.Second)
+							hf.mu.Unlock()
+						}
+					} else {
+						if time.Now().After(hf.NextSend) {
+							// TODO: sent in to server periodically
+							err := hf.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, hf.CurrentUid, "IN", hf.c)
+							if err != nil {
+								continue
+							}
+							hf.mu.Lock()
+							hf.NextSend = time.Now().Add(30 * time.Second)
+							hf.mu.Unlock()
+						}
 					}
 				} else {
-					if time.Now().After(hf.NextSend) {
-						// TODO: sent in to server periodically
-						err := hf.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, hf.CurrentUid, "IN", hf.c)
-						if err != nil {
-							continue
+					if hf.CurrentUid == "" {
+						if time.Now().After(hf.NextSend) {
+							// TODO: sent empty to server periodically
+							err := hf.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, hf.CurrentUid, "EMPTY", hf.c)
+							if err != nil {
+								continue
+							}
+							hf.mu.Lock()
+							hf.NextSend = time.Now().Add(30 * time.Second)
+							hf.mu.Unlock()
 						}
-						hf.mu.Lock()
-						hf.NextSend = time.Now().Add(30 * time.Second)
-						hf.mu.Unlock()
+					} else {
+						// TODO: sent out to server
+						err := hf.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, hf.CurrentUid, "OUT", hf.c)
+						if err == nil {
+							hf.mu.Lock()
+							hf.CurrentUid = ""
+							hf.NextSend = time.Now().Add(30 * time.Second)
+							hf.mu.Unlock()
+						}
 					}
 				}
 			} else {
-				if hf.CurrentUid == "" {
-					if time.Now().After(hf.NextSend) {
-						// TODO: sent empty to server periodically
-						err := hf.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, hf.CurrentUid, "EMPTY", hf.c)
-						if err != nil {
-							continue
-						}
-						hf.mu.Lock()
-						hf.NextSend = time.Now().Add(30 * time.Second)
-						hf.mu.Unlock()
-					}
-				} else {
-					// TODO: sent out to server
-					err := hf.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, hf.CurrentUid, "OUT", hf.c)
-					if err == nil {
-						hf.mu.Lock()
-						hf.CurrentUid = ""
-						hf.NextSend = time.Now().Add(30 * time.Second)
-						hf.mu.Unlock()
-					}
-				}
+				fmt.Println("IsNotConnected")
+				hf.c.Disconnect(100)
+				hf.mu.Lock()
+				hf.HFReader.IsConnected = false
+				hf.mu.Unlock()
 			}
-		} else {
-			fmt.Println("IsNotConnected")
-			hf.mu.Lock()
-			hf.HFReader.IsConnected = false
-			hf.mu.Unlock()
 		}
 
 		time.Sleep(1 * time.Second)

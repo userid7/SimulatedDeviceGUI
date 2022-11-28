@@ -76,7 +76,15 @@ func (a *App) SetReaderCardPresent(id uint, isCardPresent bool) {
 	a.db.Model(&HFReader{Id: id}).Update("IsCardPresent", isCardPresent)
 }
 func (a *App) SetReaderConnection(id uint, isConnected bool) {
-	a.db.Model(&HFReader{Id: id}).Update("IsConnected", isConnected)
+	fmt.Println("Connection change")
+	// a.db.Model(&HFReader{Id: id}).Update("IsConnected", isConnected)
+	for i, activeHFReader := range a.activeHFReaders{
+		if(activeHFReader.id == id){
+			a.activeHFReaders[i].mu.Lock()
+			a.activeHFReaders[i].HFReader.IsConnected = isConnected
+			a.activeHFReaders[i].mu.Unlock()
+		}
+	}
 }
 func (a *App) SetReaderEpc(id uint, epc string) {
 	a.db.Model(&HFReader{Id: id}).Update("UidBuffer", epc)

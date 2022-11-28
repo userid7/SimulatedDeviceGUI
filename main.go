@@ -4,7 +4,9 @@ import (
 	"context"
 	"embed"
 
+	pm "SimulatedDeviceGUI/device/pm"
 	hfreader "SimulatedDeviceGUI/device/hfreader"
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 
@@ -20,20 +22,23 @@ func main() {
 	// app := NewApp()
 
 	hfapp := hfreader.NewReaderApp()
+	pmapp := pm.NewPMApp()
 
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:            "SimulatedDeviceGUI",
-		Width:            440,
+		Width:            852,
 		Height:           768,
 		Assets:           assets,
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup: func(ctx context.Context) {
 			db := initDB()
 			hfapp.Startup(ctx, db)
+			pmapp.Startup(ctx, db)
 		},
 		Bind: []interface{}{
 			hfapp,
+			pmapp,
 		},
 	})
 
@@ -47,6 +52,5 @@ func initDB() *gorm.DB {
 	if err != nil {
 		panic("failed to connect database")
 	}
-
 	return db
 }

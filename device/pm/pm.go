@@ -17,6 +17,7 @@ type PM struct {
 	Kw          float32
 	Kwh         float32
 	IsOk        bool
+	IsRandom    bool
 }
 
 type PMGateway struct {
@@ -49,11 +50,11 @@ func (pmg *ActivePMGateway) Setup() {
 	opts := mqtt.NewClientOptions()
 
 	pmg.clientId = (pmg.PMGateway.Line + "-" + pmg.PMGateway.Code)
-	pmg.willTopic = "status/HF/" + pmg.PMGateway.Line + "/" + pmg.PMGateway.Code
+	pmg.willTopic = "status/PM/" + pmg.PMGateway.Line + "/" + pmg.PMGateway.Code
 
 	opts.AddBroker(pmg.PMGateway.TargetUrl)
 	opts.SetClientID(pmg.clientId)
-	opts.SetWill(pmg.willTopic, "Offline", 1, true)
+	opts.SetWill(pmg.willTopic, "Offline", 0, true)
 	opts.SetKeepAlive(5 * time.Second)
 
 	pmg.c = mqtt.NewClient(opts)
@@ -69,25 +70,24 @@ func (pmg *ActivePMGateway) Loop() {
 		}
 
 		pmg.mu.Lock()
-		d := pmg.HFReader
+		d := pmg.PMGateway
 		pmg.mu.Unlock()
 
 		fmt.Println("device", d.Code, "loop")
 		fmt.Println(d)
-		// fmt.Println(pmg.NextSend)
 
 		if !pmg.c.IsConnected() {
 			if d.IsConnected {
 				if token := pmg.c.Connect(); token.Wait() && token.Error() != nil {
-					fmt.Println("device with id", pmg.HFReader.Id, "failed to connect")
+					fmt.Println("device with id", pmg.PMGateway.Id, "failed to connect")
 					fmt.Println(token.Error())
 					pmg.mu.Lock()
-					pmg.HFReader.IsConnected = false
+					pmg.PMGateway.IsConnected = false
 					pmg.mu.Unlock()
 					continue
 				} else {
 					pmg.mu.Lock()
-					pmg.HFReader.IsConnected = true
+					pmg.PMGateway.IsConnected = true
 					pmg.mu.Unlock()
 				}
 
@@ -107,55 +107,36 @@ func (pmg *ActivePMGateway) Loop() {
 		if pmg.c.IsConnected() {
 			fmt.Println("IsConnected!")
 
-			if d.IsCardPresent && d.UidBuffer != "" {
-				if pmg.CurrentUid != d.UidBuffer {
-					// TODO: sent first in to server
-					err := pmg.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, d.UidBuffer, "IN", pmg.c)
-					if err == nil {
-						pmg.mu.Lock()
-						pmg.CurrentUid = d.UidBuffer
-						pmg.NextSend = time.Now().Add(30 * time.Second)
-						pmg.mu.Unlock()
+			if time.Now().After(pmg.NextSend) {
+				for _, pm := range pmg.PMGateway.PMs {
+					var status, message string
+
+					if pm.IsOk {
+						status = "OK"
+						message = ""
+					} else {
+						status = "ERROR"
+						message = "Unable to get data"
 					}
-				} else {
-					if time.Now().After(pmg.NextSend) {
-						// TODO: sent in to server periodically
-						err := pmg.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, pmg.CurrentUid, "IN", pmg.c)
-						if err != nil {
-							continue
-						}
-						pmg.mu.Lock()
-						pmg.NextSend = time.Now().Add(30 * time.Second)
-						pmg.mu.Unlock()
+
+					data := Data{Kw: pm.Kw, Kwh: pm.Kwh}
+
+					err := pmg.sendMqttPayload(d.TargetUrl, d.Line, pm.Post, pm.Code, status, message, data, pmg.c)
+					if err != nil {
+						fmt.Println("Failed to send pm data with id", pm.Id)
+						fmt.Println(err)
+						continue
 					}
+
+					time.Sleep(1 * time.Second)
 				}
-			} else {
-				if pmg.CurrentUid == "" {
-					if time.Now().After(pmg.NextSend) {
-						// TODO: sent empty to server periodically
-						err := pmg.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, pmg.CurrentUid, "EMPTY", pmg.c)
-						if err != nil {
-							continue
-						}
-						pmg.mu.Lock()
-						pmg.NextSend = time.Now().Add(30 * time.Second)
-						pmg.mu.Unlock()
-					}
-				} else {
-					// TODO: sent out to server
-					err := pmg.sendMqttPayload(d.TargetUrl, d.Line, d.Post, d.Code, pmg.CurrentUid, "OUT", pmg.c)
-					if err == nil {
-						pmg.mu.Lock()
-						pmg.CurrentUid = ""
-						pmg.NextSend = time.Now().Add(30 * time.Second)
-						pmg.mu.Unlock()
-					}
-				}
+
+				pmg.NextSend = time.Now().Add(30 * time.Second)
 			}
 		} else {
 			fmt.Println("IsNotConnected")
 			pmg.mu.Lock()
-			pmg.HFReader.IsConnected = false
+			pmg.PMGateway.IsConnected = false
 			pmg.mu.Unlock()
 		}
 
@@ -172,20 +153,18 @@ func (pmg *ActivePMGateway) Destroy() {
 	pmg.isActive = false
 }
 
-func (pmg *ActivePMGateway) sendMqttPayload(url string, line string, post string, code string, uid string, state string, c mqtt.Client) error {
-	fmt.Printf("%s is %s\n", code, state)
-
-	payload := &PayloadData{Uid: uid, Status: state}
+func (pmg *ActivePMGateway) sendMqttPayload(url string, line string, post string, code string, status string, message string, data Data, c mqtt.Client) error {
+	payload := &Payload{Status: status, Message: message, Data: data}
 
 	b, err := json.Marshal(payload)
 	if err != nil {
-		fmt.Println("Failed to send")
+		fmt.Println("Failed to marshal")
 		fmt.Println(err)
 		return err
 	}
 	fmt.Println(string(b))
 
-	topic := "data/HF/" + line + "/" + post + "/" + code
+	topic := "data/PM/" + line + "/" + post + "/" + code
 
 	fmt.Println("mqtt topic : ", topic)
 	fmt.Println("mqtt payload :", string(b))
@@ -198,7 +177,13 @@ func (pmg *ActivePMGateway) sendMqttPayload(url string, line string, post string
 	return nil
 }
 
-type PayloadData struct {
-	Uid    string `json:"uid"`
-	Status string `json:"operation"`
+type Data struct {
+	Kw  float32 `json:"kw"`
+	Kwh float32 `json:"kwh"`
+}
+
+type Payload struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    Data   `json:"data"`
 }
