@@ -27,8 +27,8 @@ type PMGateway struct {
 	Line        string `validate:"required"`
 	Code        string `validate:"required"`
 	PMs         []PM
-	IsConnected bool `gorm:"-"`
-	TargetUrl   string
+	IsConnected bool   `gorm:"-"`
+	TargetUrl   string `validate:"required,url"`
 }
 
 type ActivePMGateway struct {
@@ -59,6 +59,7 @@ func (pmg *ActivePMGateway) Setup() {
 	opts.SetClientID(pmg.clientId)
 	opts.SetWill(pmg.connTopic, "Offline", 0, true)
 	opts.SetKeepAlive(5 * time.Second)
+	opts.SetConnectTimeout(5 * time.Second)
 
 	pmg.c = mqtt.NewClient(opts)
 
@@ -72,8 +73,14 @@ func (pmg *ActivePMGateway) Setup() {
 				if pm.IsRandom {
 					min := -3
 					max := 3
-					offset := rand.Intn(max-min+1)  + min
+					offset := rand.Intn(max-min+1) + min
 					newKw := pm.Kw + float32(offset)
+					if newKw < 0 {
+						newKw = 0
+					}
+					if newKw > 100 {
+						newKw = 100
+					}
 					pmg.SetPMKw(pm.Id, newKw)
 				}
 				if pm.IsOk {

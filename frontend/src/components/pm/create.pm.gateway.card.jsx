@@ -96,7 +96,7 @@ function CreatePMCard() {
           "
             onChange={updateTargetUrl}
             autoComplete="off"
-            placeholder="targetUrl"
+            placeholder="Host, ex : (tcp://localhost:1883)"
             name="input"
             type="text"
           />

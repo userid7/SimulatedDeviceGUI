@@ -17,7 +17,7 @@ type HFReader struct {
 	UidBuffer     string
 	IsCardPresent bool
 	IsConnected   bool `gorm:"-"`
-	TargetUrl     string
+	TargetUrl     string `validate:"required,url"`
 }
 
 type ActiveHFReader struct {
@@ -48,6 +48,7 @@ func (hf *ActiveHFReader) Setup() {
 	opts.SetClientID(hf.clientId)
 	opts.SetWill(hf.connTopic, "Offline", 2, true)
 	opts.SetKeepAlive(5 * time.Second)
+	opts.SetConnectTimeout(5 * time.Second)
 
 	hf.c = mqtt.NewClient(opts)
 

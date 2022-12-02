@@ -13,6 +13,8 @@ function PMGatewayCard(props) {
 
   const [pmGateway, setPMGateway] = useState(props.pmGateway);
 
+  const [pms, setPMs] = useState(props.pmGateway.PMs);
+
   const deletePMGatewayHandler = (e) => {
     console.log("Delete PM Gateway");
     e.preventDefault();
@@ -29,8 +31,21 @@ function PMGatewayCard(props) {
   useEffect(() => {
     console.log("props.pmGateway");
     console.log(props.pmGateway);
-    setPMGateway(props.pmGateway);
+    setPMs(props.pmGateway.PMs);
+    setIsConnected(props.pmGateway.IsConnected);
   }, [JSON.stringify(props.pmGateway)]);
+
+  // useEffect(() => {
+  //   console.log("props.pmGateway.IsConnected");
+  //   console.log(props.pmGateway.IsConnected);
+  //   setIsConnected(props.pmGateway.IsConnected);
+  // }, [JSON.stringify(props.pmGateway.IsConnected)]);
+
+  // useEffect(() => {
+  //   console.log("props.pmGateway.PMs");
+  //   console.log(props.pmGateway.PMs);
+  //   setPMs(props.pmGateway.PMs);
+  // }, [JSON.stringify(props.pmGateway.PMs)]);
 
   return (
     <div className="block p-4 rounded-lg shadow-lg bg-white border-gray-200 hover:bg-gray-100 my-2">
@@ -86,7 +101,7 @@ function PMGatewayCard(props) {
       />
 
       <div className="px-2">
-        {pmGateway.PMs.map((PM, i) => {
+        {pms.map((PM, i) => {
           return <PMCard pm={PM} />;
         })}
       </div>

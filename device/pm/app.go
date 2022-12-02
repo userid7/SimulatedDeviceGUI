@@ -76,8 +76,9 @@ func (a *App) DeletePMGateway(id uint) {
 		fmt.Println("Failed to delete PMGateway with id", id)
 		return
 	}
-	if result := a.db.Where("PMGatewayId = ?", id).Delete(&PM{}); result.Error != nil {
+	if result := a.db.Where("pm_gateway_id = ?", id).Delete(&PM{}); result.Error != nil {
 		fmt.Println("Failed to delete PMs of PMGateway with id", id)
+		fmt.Println(result.Error)
 		return
 	}
 }
